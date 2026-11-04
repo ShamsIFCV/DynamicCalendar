@@ -226,10 +226,50 @@ function renderEvents() {
         return;
     }
 
-    parentEvents.forEach(event => {
+    sortEventsByProximity(parentEvents).forEach(event => {
         const eventCard = createEventCard(event);
         eventsListEl.appendChild(eventCard);
     });
+}
+
+// Timestamp d'un événement (date + heure), NaN si date invalide
+function getEventTimestamp(event) {
+    const time = /^\d{2}:\d{2}$/.test(event.heure) ? event.heure : '00:00';
+    return new Date(`${event.date}T${time}`).getTime();
+}
+
+// Tri des événements du plus proche au plus loin :
+// d'abord les événements à venir (ordre croissant), puis les passés (du plus récent au plus ancien).
+// Pour un événement récurrent, on se base sur sa prochaine occurrence.
+function sortEventsByProximity(events) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayTs = today.getTime();
+
+    const withKey = events.map(event => {
+        let ts = getEventTimestamp(event);
+        if (event.recurrence_enabled) {
+            const occurrenceTs = getEventOccurrences(appState.events, event)
+                .map(getEventTimestamp)
+                .filter(t => !isNaN(t));
+            const upcoming = occurrenceTs.filter(t => t >= todayTs);
+            if (upcoming.length > 0) {
+                ts = Math.min(...upcoming);
+            } else if (occurrenceTs.length > 0) {
+                ts = Math.max(...occurrenceTs);
+            }
+        }
+        return { event, ts, isPast: isNaN(ts) || ts < todayTs };
+    });
+
+    withKey.sort((a, b) => {
+        if (a.isPast !== b.isPast) return a.isPast ? 1 : -1;
+        if (isNaN(a.ts)) return 1;
+        if (isNaN(b.ts)) return -1;
+        return a.isPast ? b.ts - a.ts : a.ts - b.ts;
+    });
+
+    return withKey.map(item => item.event);
 }
 
 // Formatage des formations pour l'affichage (max 2 + tooltip)
