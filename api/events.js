@@ -3,6 +3,24 @@
  * GET /api/events
  */
 
+// Champs contenant des informations personnelles (collaborateurs, candidats) :
+// jamais renvoyés au navigateur, l'application ne les utilise pas.
+const PERSONAL_FIELDS = ['personal', 'personals', 'personal_id', 'candidat_inscrit_ids'];
+
+function stripEvent(event) {
+    if (!event || typeof event !== 'object') return event;
+    const clean = { ...event };
+    PERSONAL_FIELDS.forEach(field => delete clean[field]);
+    return clean;
+}
+
+export function stripPersonalData(data) {
+    if (Array.isArray(data)) return data.map(stripEvent);
+    if (data && Array.isArray(data.events)) return { ...data, events: data.events.map(stripEvent) };
+    if (data && Array.isArray(data.data)) return { ...data, data: data.data.map(stripEvent) };
+    return data;
+}
+
 export default async function handler(req, res) {
     // Configuration CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
@@ -49,8 +67,8 @@ export default async function handler(req, res) {
 
         const data = await response.json();
 
-        // Retourner les données
-        return res.status(200).json(data);
+        // Retourner les données sans les informations personnelles
+        return res.status(200).json(stripPersonalData(data));
 
     } catch (error) {
         console.error('Erreur serveur:', error);
