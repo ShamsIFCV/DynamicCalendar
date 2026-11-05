@@ -187,9 +187,10 @@ async function loadEvents() {
         const data = await response.json();
         const apiEvents = Array.isArray(data) ? data : (data.events || []);
 
-        // Filtrer les événements non publiés en ligne, puis mapper
+// Garder uniquement les événements publiés en ligne et au statut "active", puis mapper
         appState.events = apiEvents
             .filter(event => Number(event.publish_online) === 1)
+            .filter(event => String(event.status || '').trim().toLowerCase() === 'active')
             .map(mapEventFromAPI);
 
         loadingEl.style.display = 'none';
