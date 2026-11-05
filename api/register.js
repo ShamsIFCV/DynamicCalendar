@@ -56,10 +56,18 @@ function isValidLength(str, maxLength) {
     return typeof str === 'string' && str.length > 0 && str.length <= maxLength;
 }
 
+// Champ facultatif : absent, ou chaîne de longueur raisonnable
+function isOptionalString(value, maxLength) {
+    return value === undefined || value === null || value === '' ||
+        (typeof value === 'string' && value.length <= maxLength);
+}
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default async function handler(req, res) {
     // Configuration CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', 'evenements.ifcv.fr');
+    res.setHeader('Access-Control-Allow-Origin', 'https://evenements.ifcv.fr');
     res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
@@ -104,8 +112,8 @@ export default async function handler(req, res) {
             });
         }
 
-        // Vérifier que l'ID de l'événement est fourni
-        if (!meeting_id) {
+        // Vérifier que l'ID de l'événement est fourni et bien formé (UUID)
+        if (typeof meeting_id !== 'string' || !UUID_REGEX.test(meeting_id)) {
             return res.status(400).json({
                 error: 'Événement manquant',
                 message: 'L\'identifiant de l\'événement est requis'
@@ -124,6 +132,10 @@ export default async function handler(req, res) {
         }
         if (!isValidLength(city, 100)) {
             return res.status(400).json({ error: 'Ville invalide' });
+        }
+        if (!isOptionalString(formation, 100) || !isOptionalString(orga, 100) ||
+            !isOptionalString(req.body.source, 50) || !isOptionalString(req.body.origine, 100)) {
+            return res.status(400).json({ error: 'Données invalides' });
         }
 
         // Validation de l'email
@@ -200,7 +212,7 @@ export default async function handler(req, res) {
         // HTTP 409 = Candidat existant, mais la réponse contient quand même l'ID
         // HTTP 200/201 = Candidat créé avec succès
         if (!candidateResponse.ok && candidateResponse.status !== 409) {
-            console.error(`Erreur création candidat: ${candidateResponse.status}`, candidateData);
+            console.error(`Erreur création candidat: ${candidateResponse.status}`);
             return res.status(candidateResponse.status).json({
                 error: 'Erreur lors de l\'inscription',
                 message: 'Une erreur est survenue lors de la création de votre profil'
@@ -210,7 +222,7 @@ export default async function handler(req, res) {
         // Récupérer l'ID du candidat (nouveau ou existant)
         const candidateId = candidateData.data?.id;
         if (!candidateId) {
-            console.error('ID candidat manquant dans la réponse:', candidateData);
+            console.error('ID candidat manquant dans la réponse');
             return res.status(500).json({
                 error: 'Erreur serveur',
                 message: 'Impossible de récupérer l\'identifiant du candidat'
@@ -227,9 +239,6 @@ export default async function handler(req, res) {
             present: true
         };
 
-        console.log('📍 URL inscription événement:', meetingRegistrationUrl);
-        console.log('📦 Payload:', JSON.stringify(meetingPayload, null, 2));
-
         const meetingResponse = await fetch(meetingRegistrationUrl, {
             method: 'POST',
             headers: {
@@ -240,30 +249,21 @@ export default async function handler(req, res) {
         });
 
         if (!meetingResponse.ok) {
-            const errorData = await meetingResponse.text();
-            console.error(`Erreur inscription événement: ${meetingResponse.status}`, errorData);
+            console.error(`Erreur inscription événement: ${meetingResponse.status}`);
             // Le candidat est créé mais pas inscrit à l'événement
+            // Ne jamais renvoyer la fiche candidat au navigateur (données personnelles)
             return res.status(207).json({
                 success: true,
                 warning: true,
-                message: 'Profil créé mais erreur lors de l\'inscription à l\'événement',
-                data: {
-                    candidate: candidateData.data,
-                    meetingRegistration: null
-                }
+                message: 'Profil créé mais erreur lors de l\'inscription à l\'événement'
             });
         }
 
-        const meetingData = await meetingResponse.json();
-
-        // Retourner le succès complet
+        // Retourner le succès sans aucune donnée du candidat :
+        // en cas de candidat existant (409), la fiche renvoyée par l'ERP est celle d'une autre personne.
         return res.status(200).json({
             success: true,
-            message: 'Inscription réussie',
-            data: {
-                candidate: candidateData.data,
-                meetingRegistration: meetingData
-            }
+            message: 'Inscription réussie'
         });
 
     } catch (error) {
