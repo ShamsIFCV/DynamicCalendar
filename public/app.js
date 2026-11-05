@@ -187,7 +187,7 @@ async function loadEvents() {
         const data = await response.json();
         const apiEvents = Array.isArray(data) ? data : (data.events || []);
 
-// Garder uniquement les événements publiés en ligne et au statut "active", puis mapper
+        // Garder uniquement les événements publiés en ligne et au statut "active", puis mapper
         appState.events = apiEvents
             .filter(event => Number(event.publish_online) === 1)
             .filter(event => String(event.status || '').trim().toLowerCase() === 'active')
@@ -805,8 +805,7 @@ async function handleRegistration(e) {
             throw new Error(`Erreur HTTP: ${response.status}`);
         }
 
-        const result = await response.json();
-        console.log('Inscription réussie:', result);
+        await response.json();
 
         // Affichage du message de succès
         document.getElementById('registration-form').style.display = 'none';
