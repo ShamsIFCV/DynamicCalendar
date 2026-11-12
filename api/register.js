@@ -58,8 +58,18 @@ function isValidLength(str, maxLength) {
 
 // Champ facultatif : absent, ou chaîne de longueur raisonnable
 function isOptionalString(value, maxLength) {
+    if (typeof value === 'number' && Number.isFinite(value)) return true;
     return value === undefined || value === null || value === '' ||
         (typeof value === 'string' && value.length <= maxLength);
+}
+
+// Champ facultatif pouvant être une chaîne ou une liste de chaînes
+// (le formulaire envoie formation sous forme de tableau : [id])
+function isOptionalStringList(value, maxLength, maxItems) {
+    if (Array.isArray(value)) {
+        return value.length <= maxItems && value.every(item => isOptionalString(item, maxLength));
+    }
+    return isOptionalString(value, maxLength);
 }
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -133,7 +143,7 @@ export default async function handler(req, res) {
         if (!isValidLength(city, 100)) {
             return res.status(400).json({ error: 'Ville invalide' });
         }
-        if (!isOptionalString(formation, 100) || !isOptionalString(orga, 100) ||
+        if (!isOptionalStringList(formation, 100, 20) || !isOptionalString(orga, 100) ||
             !isOptionalString(req.body.source, 50) || !isOptionalString(req.body.origine, 100)) {
             return res.status(400).json({ error: 'Données invalides' });
         }
